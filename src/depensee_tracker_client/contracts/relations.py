@@ -1,0 +1,18 @@
+﻿from abc import ABC, abstractmethod
+
+from depensee_tracker_client.domain.models import CreateRelationInput, Relation
+
+
+class RelationCapability(ABC):
+    @abstractmethod
+    async def list_relations(self, task_id: str) -> list[Relation]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def create_relation(self, payload: CreateRelationInput) -> Relation:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_relation(self, relation_id: str) -> None:
+        raise NotImplementedError
+

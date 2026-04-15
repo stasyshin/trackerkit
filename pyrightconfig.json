@@ -1,0 +1,11 @@
+{
+  "include": [
+    "src",
+    "examples"
+  ],
+  "extraPaths": [
+    "src"
+  ],
+  "venvPath": ".",
+  "venv": ".venv"
+}

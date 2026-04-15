@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "depensee-tracker-client"
+version = "0.1.0"
+description = "Unified async client library for Jira, Yandex Tracker, and Asana integrations."
+authors = ["Mikhail Stasyshin <m.stasyshin@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/stasyshin/depensee-tracker-client"
+repository = "https://github.com/stasyshin/depensee-tracker-client"
+documentation = "https://github.com/stasyshin/depensee-tracker-client#readme"
+keywords = ["jira", "yandex-tracker", "asana", "task-tracker", "async", "integration"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+packages = [{ include = "depensee_tracker_client", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.12.5"
+jira = "^3.10.5"
+yandex-tracker-client = "^2.10"
+asana = "^5.2.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+ruff = "*"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
