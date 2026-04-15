@@ -1,6 +1,6 @@
 # depensee-tracker-client
 
-Unified async client library for task tracker integrations used by the `depensee` backend.
+Unified async client library for Jira, Yandex Tracker, and Asana integrations.
 
 ## Status
 - early-stage internal library;
@@ -8,14 +8,29 @@ Unified async client library for task tracker integrations used by the `depensee
 - currently focused on a shared contract for Jira, Yandex Tracker, and Asana.
 
 ## Installation
+
+Install from a Git tag:
+
 ```bash
-pip install .
+pip install "git+https://github.com/stasyshin/depensee-tracker-client.git@v0.1.0"
 ```
 
-For local development:
+Install from the `main` branch:
+
+```bash
+pip install "git+https://github.com/stasyshin/depensee-tracker-client.git@main"
+```
+
+## Local development
 
 ```bash
 poetry install
+```
+
+Install from the current project directory:
+
+```bash
+pip install .
 ```
 
 ## Goals
