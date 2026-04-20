@@ -1,6 +1,13 @@
 ﻿from depensee_tracker_client.contracts.task_tracker_client import TaskTrackerClient
 from depensee_tracker_client.domain.errors import ProviderCapabilityError
-from depensee_tracker_client.domain.models import Comment, CreateCommentInput, CreateRelationInput, Relation, User
+from depensee_tracker_client.domain.models import (
+    Comment,
+    CreateCommentInput,
+    CreateRelationInput,
+    Relation,
+    UpdateRelationInput,
+    User,
+)
 
 
 class BaseTaskTrackerAdapter(TaskTrackerClient):
@@ -27,6 +34,13 @@ class BaseTaskTrackerAdapter(TaskTrackerClient):
 
     async def create_relation(self, payload: CreateRelationInput) -> Relation:
         raise self._unsupported("create_relation")
+
+    async def update_relation(
+        self,
+        relation_id: str,
+        payload: UpdateRelationInput,
+    ) -> Relation:
+        raise self._unsupported("update_relation")
 
     async def delete_relation(self, relation_id: str) -> None:
         raise self._unsupported("delete_relation")

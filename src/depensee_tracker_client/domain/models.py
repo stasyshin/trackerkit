@@ -117,3 +117,9 @@ class CreateRelationInput(BaseModel):
     target_task_id: str
     relation_type: RelationType
 
+
+class UpdateRelationInput(BaseModel):
+    source_task_id: str
+    target_task_id: str
+    relation_type: RelationType
+

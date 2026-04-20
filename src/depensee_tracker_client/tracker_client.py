@@ -17,10 +17,12 @@ from depensee_tracker_client.domain.models import (
     Task,
     TaskQuery,
     UpdateProjectInput,
+    UpdateRelationInput,
     UpdateTaskInput,
     User,
     Workspace,
 )
+from depensee_tracker_client.domain.relation_mapping import RelationMappingConfig
 from depensee_tracker_client.factory.client_factory import TaskTrackerClientFactory
 
 T = TypeVar("T")
@@ -39,6 +41,7 @@ class TrackerClient:
         auth_data: dict,
         connection_timeout: int = 3,
         max_retries: int = 0,
+        relation_mapping: RelationMappingConfig | None = None,
     ) -> None:
         """Create a facade client for one selected provider.
 
@@ -62,7 +65,8 @@ class TrackerClient:
             config_data,
         )
         self._client: TaskTrackerClient = TaskTrackerClientFactory.create(
-            self._auth_config
+            self._auth_config,
+            relation_mapping=relation_mapping,
         )
 
     @property
@@ -165,6 +169,15 @@ class TrackerClient:
 
     async def create_relation(self, payload: CreateRelationInput) -> Relation:
         return await self._execute(lambda: self._client.create_relation(payload))
+
+    async def update_relation(
+        self,
+        relation_id: str,
+        payload: UpdateRelationInput,
+    ) -> Relation:
+        return await self._execute(
+            lambda: self._client.update_relation(relation_id, payload)
+        )
 
     async def delete_relation(self, relation_id: str) -> None:
         await self._execute(lambda: self._client.delete_relation(relation_id))

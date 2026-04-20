@@ -50,6 +50,7 @@ pip install .
 - shared models for tasks, projects, users, comments, relations, and statuses;
 - provider auth configs;
 - real provider adapters for `workspaces`, `projects`, and `tasks`;
+- relation CRUD for `Jira` and `Yandex Tracker`;
 - client factory.
 
 ## Internal architecture
@@ -142,16 +143,17 @@ client = TrackerClient(
 - `docs/auth.md` - authorization and client initialization.
 - `docs/projects.md` - workspaces and project methods.
 - `docs/tasks.md` - task methods and task models.
+- `docs/relations.md` - relation semantics, mapping config, and CRUD behavior.
 
 ## Examples
-- `examples/jira_example.py` - Jira auth, projects flow, and task flow.
-- `examples/yandex_example.py` - Yandex Tracker auth, projects flow, and task flow.
+- `examples/jira_example.py` - Jira auth, projects flow, task flow, and relation flow.
+- `examples/yandex_example.py` - Yandex Tracker auth, projects flow, task flow, and relation flow.
 - `examples/asana_example.py` - Asana auth and readonly inspection flow.
 
 ## Notes
 `src` is configured as the import root for the repository.
 
-`Jira`, `Yandex Tracker`, and `Asana` already implement the shared `workspaces`, `projects`, and `tasks` contract. `users`, `comments`, and `relations` remain incremental follow-up work.
+`Jira`, `Yandex Tracker`, and `Asana` already implement the shared `workspaces`, `projects`, and `tasks` contract. `Jira` and `Yandex Tracker` also implement relation CRUD for the core product relation types. `Asana` relations remain follow-up work.
 
 ## Entity Mapping
 `depensee-tracker-client` exposes a canonical task-tracker model.
@@ -167,7 +169,7 @@ They are mapped by functional role in the workflow, and some shared entities are
 | `Task` | native Jira issue / work item | native Yandex issue in a queue | native Asana task |
 | `Status` | native issue status | native issue status in queue workflow | task completion state and related task state fields |
 | `User` | native Jira user | native Tracker user | native Asana user |
-| `Relation` (planned) | native Jira issue link with configurable inward / outward link types | native issue link with explicit relationship type and direction | task dependency / dependent edge rather than a general-purpose typed link |
+| `Relation` | native Jira issue link or hierarchy relation depending on config | native issue link with explicit relationship type and direction | task dependency / dependent edge rather than a general-purpose typed link |
 
 ### Canonical mapping decision in `depensee-tracker-client`
 - `Jira`: shared `Project` maps to Jira project, and shared `Task` maps to issue.
@@ -175,10 +177,9 @@ They are mapped by functional role in the workflow, and some shared entities are
 - `Yandex Tracker`: native Yandex `project` is documented as a separate higher-level entity and is not part of the current shared contract.
 - `Yandex Tracker`: direct issue deletion is not supported by the provider in the same way as in some other trackers, so task deletion should be modeled as unsupported or as a separate close/archive workflow.
 - `Asana`: shared `Project` maps to Asana project, and shared `Task` maps to task.
-- `Relation` is planned rather than fully implemented in the current public contract.
-- `Jira`: planned shared `Relation` maps to issue links, but only the subset of link semantics that fits the shared enum should be normalized.
-- `Yandex Tracker`: planned shared `Relation` maps to issue links; provider-native link types cover both dependency-style and hierarchy-style relations.
-- `Asana`: planned shared `Relation` maps to task dependencies / dependents, so only dependency-style relations have a direct source-model equivalent.
+- `Jira`: shared `Relation` maps to issue links for `relates` and `blocks`, and to hierarchy for default `contains`.
+- `Yandex Tracker`: shared `Relation` maps to native issue links; provider-native link types cover both dependency-style and hierarchy-style relations.
+- `Asana`: relation mapping is conceptually clear for dependencies and subtasks, but relation CRUD is not implemented in the adapter yet.
 
 ### Product-first core relation semantics
 For the product concept, the most important relation taxonomy is the one that supports canvas visualization and planning semantics.
@@ -195,9 +196,9 @@ The core visual set is smaller than the full set of provider-native link types.
 - Provider-specific hierarchy variants such as epics or custom hierarchy levels can later be folded into `contains` when that preserves the planning meaning.
 
 ### Integration note
-- The current domain enum is still a draft provider-oriented shape.
-- The product-facing taxonomy above is the recommended direction for the next iteration of relation modeling.
-- Jira allows custom issue link types, so label-based normalization must stay explicit and source-aware.
+- The product-facing taxonomy above is the active shared model for relation work in the library.
+- Jira allows custom issue link types, so label-based normalization stays explicit and source-aware.
+- `RelationMappingConfig` provides a default `Mode A` structural hierarchy for Jira `contains` and leaves room for `Mode B` custom link mapping.
 - Asana covers dependency and subtask hierarchy well, but does not provide a general-purpose typed link system equivalent to Jira or Yandex Tracker.
 
 ### Source notes
@@ -240,7 +241,6 @@ Examples load variables with this priority:
 3. `.env.example`
 
 ## Next steps
-- validate `Yandex Tracker` adapter on real example flows the same way as Jira examples;
-- add and verify examples for `Yandex Tracker` CRUD scenarios;
-- start designing and implementing shared support for task relations;
-- extend docs once relations move from planned scope into the public contract.
+- validate relation CRUD on real Jira and Yandex Tracker workspaces with manual examples;
+- add targeted automated coverage for relation normalization and mapping configs;
+- design Asana relation support around dependencies and subtasks without overloading the shared model.

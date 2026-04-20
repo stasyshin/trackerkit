@@ -7,6 +7,7 @@ TrackerClient(
     auth_data: dict,
     connection_timeout: float = 3,
     max_retries: int = 0,
+    relation_mapping: RelationMappingConfig | None = None,
 )
 await client.check_connection() -> bool
 await client.ensure_connection() -> None
@@ -102,9 +103,53 @@ client = TrackerClient(
 ## Connection Options
 - `connection_timeout` controls provider request timeout in seconds
 - `max_retries` controls additional retry attempts for Jira transport
+- `relation_mapping` overrides default relation normalization and provider link mapping
 - these options are passed separately from `auth_data`
 - defaults are defined on `TrackerClient`, not in environment variables
 - current defaults: `connection_timeout=3`, `max_retries=0`
+
+## Relation Mapping
+- `RelationMappingConfig` is an optional runtime config for relation semantics
+- by default:
+  - Jira maps `relates` and `blocks` through issue links
+  - Jira maps `contains` through structural hierarchy
+  - Yandex Tracker maps `relates`, `blocks`, and `contains` through native link values
+- pass a custom config only when provider defaults do not match your workspace setup
+
+### Example
+```python
+from depensee_tracker_client import (
+    JiraContainsMode,
+    JiraLinkTypeMapping,
+    JiraRelationMappingConfig,
+    RelationMappingConfig,
+    RelationType,
+    TrackerClient,
+)
+
+relation_mapping = RelationMappingConfig(
+    jira=JiraRelationMappingConfig(
+        contains_mode=JiraContainsMode.HYBRID,
+        contains_link_mappings=(
+            JiraLinkTypeMapping(
+                relation_type=RelationType.CONTAINS,
+                type_name="Contains",
+                outward_label="contains",
+                inward_label="is contained by",
+            ),
+        ),
+    )
+)
+
+client = TrackerClient(
+    provider="jira",
+    auth_data={
+        "base_url": "https://your-domain.atlassian.net",
+        "access_token": "secret",
+    },
+    relation_mapping=relation_mapping,
+)
+```
 
 ## Diagnostics
 - `TrackerClient(...)` validates configuration immediately and raises `ConfigurationError` if required auth fields are missing

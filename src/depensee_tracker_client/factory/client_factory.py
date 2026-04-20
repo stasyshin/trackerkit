@@ -9,6 +9,7 @@ from depensee_tracker_client.contracts.auth import (
 from depensee_tracker_client.contracts.task_tracker_client import TaskTrackerClient
 from depensee_tracker_client.domain.enums import Provider
 from depensee_tracker_client.domain.errors import ConfigurationError
+from depensee_tracker_client.domain.relation_mapping import RelationMappingConfig
 from depensee_tracker_client.providers.asana.client import AsanaClient
 from depensee_tracker_client.providers.jira.client import JiraClient
 from depensee_tracker_client.providers.yandex_tracker.client import YandexTrackerClient
@@ -28,7 +29,10 @@ class TaskTrackerClientFactory:
     }
 
     @staticmethod
-    def create(config: ProviderAuthConfig) -> TaskTrackerClient:
+    def create(
+        config: ProviderAuthConfig,
+        relation_mapping: RelationMappingConfig | None = None,
+    ) -> TaskTrackerClient:
         config_type = TaskTrackerClientFactory._config_registry.get(config.provider)
         client_type = TaskTrackerClientFactory._client_registry.get(config.provider)
 
@@ -40,7 +44,9 @@ class TaskTrackerClientFactory:
                 f"Expected {config_type.__name__} for provider {config.provider.value}."
             )
 
-        return client_type(config)
+        if relation_mapping is None:
+            return client_type(config)
+        return client_type(config, relation_mapping=relation_mapping)
 
     @staticmethod
     def build_auth_config(

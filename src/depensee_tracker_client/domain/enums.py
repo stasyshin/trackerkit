@@ -10,6 +10,7 @@ class Provider(str, Enum):
 class RelationType(str, Enum):
     RELATES = "relates"
     BLOCKS = "blocks"
+    CONTAINS = "contains"
     IS_BLOCKED_BY = "is_blocked_by"
     DUPLICATES = "duplicates"
     IS_DUPLICATED_BY = "is_duplicated_by"

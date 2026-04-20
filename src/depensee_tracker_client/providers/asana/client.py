@@ -19,6 +19,7 @@ from depensee_tracker_client.domain.models import (
     User,
     Workspace,
 )
+from depensee_tracker_client.domain.relation_mapping import RelationMappingConfig
 from depensee_tracker_client.providers.asana.mappers import AsanaMapper
 from depensee_tracker_client.providers.asana.queries import AsanaQueryPolicy
 from depensee_tracker_client.providers.asana.transport import AsanaTransport
@@ -28,7 +29,12 @@ from depensee_tracker_client.providers.base import BaseTaskTrackerAdapter
 class AsanaClient(BaseTaskTrackerAdapter):
     provider_name = "Asana"
 
-    def __init__(self, config: AsanaAuthConfig) -> None:
+    def __init__(
+        self,
+        config: AsanaAuthConfig,
+        relation_mapping: RelationMappingConfig | None = None,
+    ) -> None:
+        del relation_mapping
         self._transport = AsanaTransport(config)
         self._mapper = AsanaMapper()
         self._queries = AsanaQueryPolicy()

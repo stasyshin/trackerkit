@@ -4,12 +4,15 @@ import random
 import string
 
 from depensee_tracker_client import (
+    CreateRelationInput,
     CreateProjectInput,
     CreateTaskInput,
     ProviderCapabilityError,
+    RelationType,
     TrackerClient,
     TrackerClientError,
     UpdateProjectInput,
+    UpdateRelationInput,
     UpdateTaskInput,
     YandexTrackerAuthConfig,
 )
@@ -52,83 +55,118 @@ async def main() -> None:
             f"name={available_project.name}"
         )
 
-    # 3. Reuse the first existing project when possible. Otherwise create a
-    # temporary queue-backed project for the example flow.
+    # 3. Always create a temporary queue-backed project for the example flow.
+    # This keeps test data isolated and allows deleting the whole queue after
+    # the run instead of leaving tasks in a shared existing queue.
     created_project = False
-    if projects:
-        project = projects[0]
-        print(f"Fallback to existing Yandex project: {project.key or project.id}")
-    else:
-        # In Yandex Tracker the shared Project model is backed by a queue.
-        # Queue key must contain latin letters only, so we keep a readable
-        # prefix and add a short letter suffix for uniqueness between runs.
-        project_key = "DEPENSEE" + "".join(random.choices(string.ascii_uppercase, k=3))
-        try:
-            project = await client.create_project(
-                CreateProjectInput(
-                    name=f"Depensee Demo Project {project_key[-3:]}",
-                    key=project_key,
-                    description="Example project created from depensee-tracker-client.",
-                )
+    project_key = "DEPENSEE" + "".join(random.choices(string.ascii_uppercase, k=3))
+    try:
+        project = await client.create_project(
+            CreateProjectInput(
+                name=f"Depensee Demo Project {project_key[-3:]}",
+                key=project_key,
+                description="Temporary example project created from depensee-tracker-client.",
             )
-            created_project = True
-        except ProviderCapabilityError as error:
-            print(error)
-            return
+        )
+        created_project = True
+    except ProviderCapabilityError as error:
+        print(error)
+        print(
+            "Yandex example now requires permission to create a temporary queue/project "
+            "so the whole example can be cleaned up safely."
+        )
+        return
     print(project)
 
-    if created_project:
-        wait_for_enter("Project created. Check it in Yandex Tracker before update.")
+    wait_for_enter("Project created. Check it in Yandex Tracker before update.")
 
-        # Update the created project.
-        project = await client.update_project(
-            project.id,
-            UpdateProjectInput(description="Updated Yandex example project."),
+    # Update the created project.
+    project = await client.update_project(
+        project.id,
+        UpdateProjectInput(description="Updated temporary Yandex example project."),
+    )
+    print(project)
+
+    wait_for_enter("Project updated. Check it in Yandex Tracker before task creation.")
+
+    # 4. Create three tasks for the same visible relation lifecycle as Jira.
+    created_tasks = []
+    for index, title in enumerate(
+        (
+            "Prepare release notes",
+            "Review release notes",
+            "Publish release summary",
+        ),
+        start=1,
+    ):
+        task = await client.create_task(
+            CreateTaskInput(
+                title=title,
+                description=(
+                    f"Example Yandex Tracker task {index} created for relation CRUD validation."
+                ),
+                project_id=project.key or project.id,
+            )
         )
-        print(project)
+        created_tasks.append(task)
+        print(task)
 
-        wait_for_enter("Project updated. Check it in Yandex Tracker before task creation.")
-    else:
-        wait_for_enter("Using existing Yandex project. Check it before task creation.")
+    await client.get_task(created_tasks[0].id)
+    wait_for_enter("Tasks created. Check them in Yandex Tracker before task update.")
 
-    # 4. Create a task inside the created project.
-    task = await client.create_task(
-        CreateTaskInput(
-            title="Prepare release notes",
-            description="Draft the release notes for sprint 12",
-            project_id=project.key or project.id,
+    created_tasks[0] = await client.update_task(
+        created_tasks[0].id,
+        UpdateTaskInput(description="Updated Yandex relation example root task."),
+    )
+    print(created_tasks[0])
+
+    root_task, blocked_task, related_task = created_tasks
+
+    relation = await client.create_relation(
+        CreateRelationInput(
+            source_task_id=root_task.id,
+            target_task_id=blocked_task.id,
+            relation_type=RelationType.BLOCKS,
         )
     )
-    print(task)
+    print("yandex_tracker: created relation")
+    print(relation)
 
-    # Read the created task back from the tracker to validate the round-trip
-    # without printing the same payload twice in the console.
-    await client.get_task(task.id)
+    print("yandex_tracker: relations for root task")
+    print(await client.list_relations(root_task.id))
+    print("yandex_tracker: relations for blocked task")
+    print(await client.list_relations(blocked_task.id))
 
-    wait_for_enter("Task created. Check it in Yandex Tracker before update.")
+    wait_for_enter("Relation created. Check it in Yandex Tracker before relation update.")
 
-    # Update the created task.
-    task = await client.update_task(
-        task.id,
-        UpdateTaskInput(description="Updated release notes draft"),
+    relation = await client.update_relation(
+        relation.id,
+        UpdateRelationInput(
+            source_task_id=root_task.id,
+            target_task_id=related_task.id,
+            relation_type=RelationType.RELATES,
+        ),
     )
-    print(task)
+    print("yandex_tracker: updated relation")
+    print(relation)
+    print("yandex_tracker: relations for root task after update")
+    print(await client.list_relations(root_task.id))
+    print("yandex_tracker: relations for related task after update")
+    print(await client.list_relations(related_task.id))
 
-    if created_project:
-        wait_for_enter("Task updated. Check it in Yandex Tracker before project delete.")
-    else:
-        wait_for_enter(
-            "Task updated. It will remain in the existing Yandex project after the example run."
-        )
+    wait_for_enter(
+        "Relation updated. Check it in Yandex Tracker before cleanup of links and project."
+    )
 
-    # Yandex Tracker does not support direct issue deletion in this flow.
-    # We remove the temporary queue/project only when this example created it.
+    # Yandex Tracker does not support direct issue deletion reliably in this flow.
+    # Instead, remove links and delete the whole temporary queue/project.
     if created_project:
+        await client.delete_relation(relation.id)
         wait_for_enter(
-            "Task will remain in the queue until project delete. Check it before cleanup."
+            "Relation removed. Tasks still exist in the temporary queue. Check them before project delete."
         )
         await client.delete_project(project.id)
-        wait_for_enter("Project deleted. Check it in Yandex Tracker after delete.")
+        wait_for_enter("Temporary project deleted. Check it in Yandex Tracker after delete.")
     print("yandex_tracker: done")
 
 

@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from yandex_tracker_client import TrackerClient as YandexSDKClient
+from yandex_tracker_client.collections import Links
 
 from depensee_tracker_client.contracts.auth import YandexTrackerAuthConfig
 from depensee_tracker_client.domain.enums import Provider
@@ -76,6 +77,27 @@ class YandexTrackerTransport:
 
     async def delete_issue(self, issue: Any) -> None:
         await self._run(issue.delete)
+
+    async def get_issue_links(self, issue: Any) -> list[Any]:
+        return await self._run(issue.links.get_all)
+
+    async def create_issue_link(
+        self,
+        source_issue: Any,
+        relationship: str,
+        target_task_id: str,
+    ) -> Any:
+        return await self._run(source_issue.links.create, relationship, target_task_id)
+
+    def _links_collection(self) -> Links:
+        return Links(self._get_client()._connection)
+
+    async def get_link(self, relation_id: str) -> Any:
+        return await self._run(self._links_collection().get, relation_id)
+
+    async def delete_link(self, relation_id: str) -> None:
+        link = await self.get_link(relation_id)
+        await self._run(link.delete)
 
     async def get_queue(self, project_id: str) -> Any:
         return await self._run(self._get_client().queues.get, project_id)

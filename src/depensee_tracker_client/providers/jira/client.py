@@ -1,6 +1,7 @@
 ﻿from typing import Any
 
 from depensee_tracker_client.contracts.auth import JiraAuthConfig
+from depensee_tracker_client.domain.enums import RelationType
 from depensee_tracker_client.domain.errors import ProviderCapabilityError
 from depensee_tracker_client.domain.models import (
     Comment,
@@ -15,23 +16,32 @@ from depensee_tracker_client.domain.models import (
     Task,
     TaskQuery,
     UpdateProjectInput,
+    UpdateRelationInput,
     UpdateTaskInput,
     User,
     Workspace,
 )
+from depensee_tracker_client.domain.relation_mapping import RelationMappingConfig
 from depensee_tracker_client.providers.base import BaseTaskTrackerAdapter
 from depensee_tracker_client.providers.jira.mappers import JiraMapper
 from depensee_tracker_client.providers.jira.queries import JiraQueryBuilder
+from depensee_tracker_client.providers.jira.relations import JiraRelationPolicy
 from depensee_tracker_client.providers.jira.transport import JiraTransport
 
 
 class JiraClient(BaseTaskTrackerAdapter):
     provider_name = "Jira"
 
-    def __init__(self, config: JiraAuthConfig) -> None:
+    def __init__(
+        self,
+        config: JiraAuthConfig,
+        relation_mapping: RelationMappingConfig | None = None,
+    ) -> None:
         self._transport = JiraTransport(config)
         self._mapper = JiraMapper(config.base_url)
         self._queries = JiraQueryBuilder()
+        effective_mapping = relation_mapping or RelationMappingConfig()
+        self._relations = JiraRelationPolicy(effective_mapping.jira)
 
     async def check_connection(self) -> bool:
         return await self._transport.check_connection()
@@ -136,4 +146,58 @@ class JiraClient(BaseTaskTrackerAdapter):
 
     async def delete_project(self, project_id: str) -> None:
         await self._transport.delete_project(project_id)
+
+    async def list_relations(self, task_id: str) -> list[Relation]:
+        issue = await self._transport.get_issue(task_id, self._relations.relation_fields)
+        return self._relations.list_relations(issue)
+
+    async def create_relation(self, payload: CreateRelationInput) -> Relation:
+        if (
+            payload.relation_type is RelationType.CONTAINS
+            and self._relations.uses_structural_contains()
+        ):
+            await self._transport.set_issue_parent(
+                payload.target_task_id,
+                payload.source_task_id,
+            )
+            return self._relations.build_created_relation(None, payload)
+
+        mapping = self._relations.get_create_link_mapping(payload.relation_type)
+        if mapping is None:
+            raise ProviderCapabilityError(
+                f"Jira relation type '{payload.relation_type.value}' is not configured."
+            )
+        relation_id = await self._transport.create_issue_link(
+            mapping.type_name,
+            payload.source_task_id,
+            payload.target_task_id,
+        )
+        if relation_id is None:
+            source_relations = await self.list_relations(payload.source_task_id)
+            created_relation = self._relations.find_relation(source_relations, payload)
+            if created_relation is not None:
+                return created_relation
+        return self._relations.build_created_relation(relation_id, payload)
+
+    async def update_relation(
+        self,
+        relation_id: str,
+        payload: UpdateRelationInput,
+    ) -> Relation:
+        await self.delete_relation(relation_id)
+        return await self.create_relation(
+            CreateRelationInput(
+                source_task_id=payload.source_task_id,
+                target_task_id=payload.target_task_id,
+                relation_type=payload.relation_type,
+            )
+        )
+
+    async def delete_relation(self, relation_id: str) -> None:
+        structural_relation = self._relations.parse_structural_relation_id(relation_id)
+        if structural_relation is not None:
+            raise ProviderCapabilityError(
+                "Jira structural 'contains' relations cannot be deleted safely via this adapter."
+            )
+        await self._transport.delete_issue_link(relation_id)
 

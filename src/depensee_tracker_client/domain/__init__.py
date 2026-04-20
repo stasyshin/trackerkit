@@ -20,9 +20,18 @@ from depensee_tracker_client.domain.models import (
     Task,
     TaskQuery,
     UpdateProjectInput,
+    UpdateRelationInput,
     UpdateTaskInput,
     User,
     Workspace,
+)
+from depensee_tracker_client.domain.relation_mapping import (
+    JiraContainsMode,
+    JiraLinkTypeMapping,
+    JiraRelationMappingConfig,
+    RelationMappingConfig,
+    YandexTrackerRelationMapping,
+    YandexTrackerRelationMappingConfig,
 )
 
 __all__ = [
@@ -34,11 +43,15 @@ __all__ = [
     "CreateProjectInput",
     "CreateRelationInput",
     "CreateTaskInput",
+    "JiraContainsMode",
+    "JiraLinkTypeMapping",
+    "JiraRelationMappingConfig",
     "Project",
     "Provider",
     "ProviderCapabilityError",
     "ProviderError",
     "Relation",
+    "RelationMappingConfig",
     "RelationType",
     "Status",
     "Task",
@@ -46,8 +59,11 @@ __all__ = [
     "TrackerClientError",
     "TrackerKitError",
     "UpdateProjectInput",
+    "UpdateRelationInput",
     "UpdateTaskInput",
     "User",
     "Workspace",
+    "YandexTrackerRelationMapping",
+    "YandexTrackerRelationMappingConfig",
 ]
 

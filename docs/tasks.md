@@ -67,8 +67,9 @@ await client.delete_task(task_id: str) -> None
 - `Task.project_id` points to the parent `Project`.
 - In `Yandex Tracker`, this means each task belongs to a queue represented by unified `Project`.
 
-## Planned Relation Mapping
-`Relation` is planned as a shared task-to-task edge in the canonical model, but provider source models are not identical.
+## Relation Mapping
+`Relation` is a shared task-to-task edge in the canonical model.
+The detailed CRUD contract and provider-specific mapping rules live in `docs/relations.md`.
 
 | Shared entity | Jira | Yandex Tracker | Asana |
 | --- | --- | --- | --- |
@@ -100,7 +101,7 @@ The core set is:
 
 ### Modeling note
 - This product-facing taxonomy is a better fit for the canvas concept than a provider-driven list of all possible external link types.
-- It is acceptable for provider adapters to ingest richer native link types and then normalize only the planning-relevant subset into the shared visual model.
+- Provider adapters may ingest richer native link types and normalize only the planning-relevant subset into the shared visual model.
 
 ## Sources
 - Jira: [Issue linking model](https://developer.atlassian.com/cloud/jira/platform/issue-linking-model/)

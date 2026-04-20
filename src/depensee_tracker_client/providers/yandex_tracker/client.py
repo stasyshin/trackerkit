@@ -15,26 +15,39 @@ from depensee_tracker_client.domain.models import (
     Task,
     TaskQuery,
     UpdateProjectInput,
+    UpdateRelationInput,
     UpdateTaskInput,
     User,
     Workspace,
 )
+from depensee_tracker_client.domain.relation_mapping import RelationMappingConfig
 from depensee_tracker_client.providers.base import BaseTaskTrackerAdapter
 from depensee_tracker_client.providers.yandex_tracker.mappers import YandexTrackerMapper
 from depensee_tracker_client.providers.yandex_tracker.queries import YandexTrackerQueryPolicy
+from depensee_tracker_client.providers.yandex_tracker.relations import (
+    YandexTrackerRelationPolicy,
+)
 from depensee_tracker_client.providers.yandex_tracker.transport import YandexTrackerTransport
 
 
 class YandexTrackerClient(BaseTaskTrackerAdapter):
     provider_name = "Yandex Tracker"
 
-    def __init__(self, config: YandexTrackerAuthConfig) -> None:
+    def __init__(
+        self,
+        config: YandexTrackerAuthConfig,
+        relation_mapping: RelationMappingConfig | None = None,
+    ) -> None:
         workspace_id = str(
             config.cloud_org_id or config.org_id or "yandex-tracker"
         )
         self._transport = YandexTrackerTransport(config)
         self._mapper = YandexTrackerMapper(workspace_id)
         self._queries = YandexTrackerQueryPolicy()
+        effective_mapping = relation_mapping or RelationMappingConfig()
+        self._relations = YandexTrackerRelationPolicy(
+            effective_mapping.yandex_tracker
+        )
 
     async def check_connection(self) -> bool:
         return await self._transport.check_connection()
@@ -230,4 +243,40 @@ class YandexTrackerClient(BaseTaskTrackerAdapter):
     async def delete_project(self, project_id: str) -> None:
         queue = await self._transport.get_queue(project_id)
         await self._transport.delete_queue(queue)
+
+    async def list_relations(self, task_id: str) -> list[Relation]:
+        issue = await self._transport.get_issue(task_id)
+        links = await self._transport.get_issue_links(issue)
+        return self._relations.list_relations(issue, links)
+
+    async def create_relation(self, payload: CreateRelationInput) -> Relation:
+        relationship = self._relations.get_create_relationship(payload.relation_type)
+        if relationship is None:
+            raise ProviderCapabilityError(
+                f"Yandex Tracker relation type '{payload.relation_type.value}' is not configured."
+            )
+        source_issue = await self._transport.get_issue(payload.source_task_id)
+        link = await self._transport.create_issue_link(
+            source_issue,
+            relationship,
+            payload.target_task_id,
+        )
+        return self._relations.build_created_relation(str(link.id), payload)
+
+    async def update_relation(
+        self,
+        relation_id: str,
+        payload: UpdateRelationInput,
+    ) -> Relation:
+        await self.delete_relation(relation_id)
+        return await self.create_relation(
+            CreateRelationInput(
+                source_task_id=payload.source_task_id,
+                target_task_id=payload.target_task_id,
+                relation_type=payload.relation_type,
+            )
+        )
+
+    async def delete_relation(self, relation_id: str) -> None:
+        await self._transport.delete_link(relation_id)
 

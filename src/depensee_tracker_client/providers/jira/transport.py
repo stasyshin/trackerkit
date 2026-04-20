@@ -16,6 +16,7 @@ class JiraTransport:
     def __init__(self, config: JiraAuthConfig) -> None:
         self._config = config
         self._client: JIRA | None = None
+        self._last_issue_link_debug: dict[str, Any] | None = None
 
     def _get_client(self) -> JIRA:
         if self._client is None:
@@ -80,11 +81,63 @@ class JiraTransport:
     async def update_issue_fields(self, issue: Any, fields: dict[str, Any]) -> None:
         await self._run(issue.update, fields=fields)
 
+    async def set_issue_parent(self, task_id: str, parent_task_id: str) -> None:
+        issue = await self.get_issue(task_id, "parent")
+        await self.update_issue_fields(issue, {"parent": {"id": parent_task_id}})
+
+    async def get_issue_key(self, task_id: str) -> str:
+        issue = await self.get_issue(task_id, "key")
+        return str(issue.key)
+
     async def transition_issue(self, issue: Any, transition: str) -> None:
         await self._run(self._get_client().transition_issue, issue, transition)
 
     async def delete_issue(self, issue: Any) -> None:
         await self._run(issue.delete)
+
+    async def get_issue_link(self, relation_id: str) -> Any:
+        return await self._run(self._get_client().issue_link, relation_id)
+
+    def get_last_issue_link_debug(self) -> dict[str, Any] | None:
+        return self._last_issue_link_debug
+
+    async def create_issue_link(
+        self,
+        link_type_name: str,
+        source_task_id: str,
+        target_task_id: str,
+    ) -> str | None:
+        source_issue_key = await self.get_issue_key(source_task_id)
+        target_issue_key = await self.get_issue_key(target_task_id)
+        response = await self._run(
+            self._get_client().create_issue_link,
+            link_type_name,
+            target_issue_key,
+            source_issue_key,
+        )
+        status_code = getattr(response, "status_code", None)
+        response_text = getattr(response, "text", None)
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        self._last_issue_link_debug = {
+            "link_type_name": link_type_name,
+            "source_task_id": source_task_id,
+            "target_task_id": target_task_id,
+            "source_issue_key": source_issue_key,
+            "target_issue_key": target_issue_key,
+            "status_code": status_code,
+            "response_text": response_text,
+            "response_json": payload,
+        }
+        if payload is None:
+            return None
+        relation_id = payload.get("id")
+        return str(relation_id) if relation_id is not None else None
+
+    async def delete_issue_link(self, relation_id: str) -> None:
+        await self._run(self._get_client().delete_issue_link, relation_id)
 
     async def get_projects(self) -> list[Any]:
         return await self._run(self._get_client().projects)

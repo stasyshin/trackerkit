@@ -1,6 +1,10 @@
 ﻿from abc import ABC, abstractmethod
 
-from depensee_tracker_client.domain.models import CreateRelationInput, Relation
+from depensee_tracker_client.domain.models import (
+    CreateRelationInput,
+    Relation,
+    UpdateRelationInput,
+)
 
 
 class RelationCapability(ABC):
@@ -10,6 +14,14 @@ class RelationCapability(ABC):
 
     @abstractmethod
     async def create_relation(self, payload: CreateRelationInput) -> Relation:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def update_relation(
+        self,
+        relation_id: str,
+        payload: UpdateRelationInput,
+    ) -> Relation:
         raise NotImplementedError
 
     @abstractmethod
