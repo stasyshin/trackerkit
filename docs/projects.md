@@ -42,7 +42,7 @@ await client.delete_project(project_id: str) -> None
 - `Jira`, `Yandex Tracker`, and `Asana` implement this section of the contract.
 - In `Yandex Tracker`, official documentation distinguishes `queue` and native `project` as separate entities.
 - In `Yandex Tracker`, every issue belongs to a queue, while native `project` is a higher-level entity that can include queues.
-- In `depensee-tracker-client`, shared `Project` is mapped to the provider entity that acts as the main operational task container.
+- In `trackerkit`, shared `Project` is mapped to the provider entity that acts as the main operational task container.
 - For `Yandex Tracker`, this means shared `Project` is mapped to `queue`.
 - For `Yandex Tracker`, `Project.id` and `Project.key` are based on the queue key.
 - For `Yandex Tracker`, `create_project()` creates a queue under the hood.
@@ -81,7 +81,7 @@ This is a canonical integration decision made on top of provider source models, 
 
 ## Example
 ```python
-from depensee_tracker_client import (
+from trackerkit import (
     CreateProjectInput,
     TrackerClient,
     UpdateProjectInput,

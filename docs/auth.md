@@ -35,7 +35,7 @@ await client.get_connection_diagnostic() -> ConnectionDiagnostic
 
 ### Example
 ```python
-from depensee_tracker_client import TrackerClient
+from trackerkit import TrackerClient
 
 client = TrackerClient(
     provider="jira",
@@ -62,7 +62,7 @@ client = TrackerClient(
 
 ### Example
 ```python
-from depensee_tracker_client import TrackerClient
+from trackerkit import TrackerClient
 
 client = TrackerClient(
     provider="yandex_tracker",
@@ -84,7 +84,7 @@ client = TrackerClient(
 
 ### Example
 ```python
-from depensee_tracker_client import TrackerClient
+from trackerkit import TrackerClient
 
 client = TrackerClient(
     provider="asana",
@@ -98,7 +98,7 @@ client = TrackerClient(
 ## Errors
 - `ConfigurationError` if required auth fields are missing
 - `AuthenticationError` if the client is disconnected or provider auth is invalid
-- `ValueError` if `provider` is not supported
+- `ConfigurationError` or enum coercion `ValueError` if `provider` is not supported
 
 ## Connection Options
 - `connection_timeout` controls provider request timeout in seconds
@@ -108,8 +108,16 @@ client = TrackerClient(
 - defaults are defined on `TrackerClient`, not in environment variables
 - current defaults: `connection_timeout=3`, `max_retries=0`
 
+## Capability Scope
+- `workspaces`, `projects`, and `tasks` are implemented by Jira, Yandex Tracker, and Asana
+- relation CRUD is implemented by Jira and Yandex Tracker
+- Asana relation CRUD is not implemented yet
+- users and comments are present in the shared contract as future capabilities; provider adapters currently raise `ProviderCapabilityError`
+
 ## Relation Mapping
 - `RelationMappingConfig` is an optional runtime config for relation semantics
+- the primary path is explicit config construction and passing it into `TrackerClient`
+- `RelationMappingConfig.from_env()` is an opt-in helper for examples, tests, or host services that intentionally use environment-based settings
 - by default:
   - Jira maps `relates` and `blocks` through issue links
   - Jira maps `contains` through structural hierarchy
@@ -118,7 +126,7 @@ client = TrackerClient(
 
 ### Example
 ```python
-from depensee_tracker_client import (
+from trackerkit import (
     JiraContainsMode,
     JiraLinkTypeMapping,
     JiraRelationMappingConfig,
@@ -168,7 +176,8 @@ client = TrackerClient(
 - auth configs and shared DTOs remain `Pydantic` models
 - the public API of the library is async
 - provider transports may use native async clients or wrap sync SDKs internally
-- the library itself does not read `.env`; configuration is injected from the host service
+- the library does not load `.env` files; configuration is injected from the host service
+- env-based helpers read process environment only when called explicitly
 - local `examples/` may load `.env.example` and `.env` only for manual development runs
 - auth credentials in examples are loaded with precedence: process environment -> `.env` -> `.env.example`
 
@@ -176,7 +185,7 @@ client = TrackerClient(
 ```python
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from depensee_tracker_client import TrackerClient
+from trackerkit import TrackerClient
 
 
 class TrackerSettings(BaseSettings):

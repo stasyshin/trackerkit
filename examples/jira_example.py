@@ -1,18 +1,18 @@
-﻿import asyncio
+import asyncio
 import os
 
-from depensee_tracker_client import (
+from trackerkit import (
     CreateRelationInput,
     CreateProjectInput,
     CreateTaskInput,
     JiraAuthConfig,
     ProviderCapabilityError,
+    RelationMappingConfig,
     RelationType,
     TaskQuery,
     TrackerClient,
     TrackerClientError,
     UpdateProjectInput,
-    UpdateRelationInput,
     UpdateTaskInput,
 )
 from _base import wait_for_enter
@@ -33,6 +33,9 @@ async def main() -> None:
     client = TrackerClient(
         provider="jira",
         auth_data=auth_config.model_dump(exclude_none=True),
+        # Examples can opt into env-based mapping. Production code should usually
+        # construct RelationMappingConfig explicitly from service settings.
+        relation_mapping=RelationMappingConfig.from_env(),
     )
 
     # 1. Check connection before any CRUD calls.
@@ -88,97 +91,103 @@ async def main() -> None:
     else:
         wait_for_enter("Using existing Jira project. Check it before task creation.")
 
-    # 4. Create three tasks for a simple visible relation lifecycle in Jira.
+    # 4. Create one root task and three target tasks for each relation type.
     project_id = project.id
     tasks = await client.list_tasks(TaskQuery(project_id=project_id))
     print(tasks)
 
     created_tasks = []
-    for index, title in enumerate(
-        (
-            "Prepare release notes",
-            "Review release notes",
-            "Publish release summary",
-        ),
-        start=1,
-    ):
-        task = await client.create_task(
-            CreateTaskInput(
-                title=title,
-                description=f"Example Jira task {index} created for relation CRUD validation.",
-                project_id=project_id,
-            )
-        )
-        created_tasks.append(task)
-        print(task)
-
-    await client.get_task(created_tasks[0].id)
-    wait_for_enter("Tasks created. Check them in Jira before task update.")
-
-    created_tasks[0] = await client.update_task(
-        created_tasks[0].id,
-        UpdateTaskInput(description="Updated Jira relation example root task."),
-    )
-    print(created_tasks[0])
-
-    wait_for_enter("Task updated. Check it in Jira before relation creation.")
-
-    root_task, blocked_task, related_task = created_tasks
-
-    relation = await client.create_relation(
-        CreateRelationInput(
-            source_task_id=root_task.id,
-            target_task_id=blocked_task.id,
-            relation_type=RelationType.BLOCKS,
-        )
-    )
-    print("jira: created relation")
-    print(relation)
-    jira_transport = client._client._transport
-    print("jira: raw create_issue_link response")
-    print(jira_transport.get_last_issue_link_debug())
-
-    print("jira: relations for root task")
-    print(await client.list_relations(root_task.id))
-    print("jira: relations for blocked task")
-    print(await client.list_relations(blocked_task.id))
-
-    if relation.id is not None:
-        wait_for_enter("Relation created. Check it in Jira before relation update.")
-        relation = await client.update_relation(
-            relation.id,
-            UpdateRelationInput(
-                source_task_id=root_task.id,
-                target_task_id=related_task.id,
-                relation_type=RelationType.RELATES,
+    created_relations = []
+    try:
+        for index, title in enumerate(
+            (
+                "Prepare release notes",
+                "Review release notes",
+                "Publish release summary",
+                "Prepare release checklist",
             ),
+            start=1,
+        ):
+            task = await client.create_task(
+                CreateTaskInput(
+                    title=title,
+                    description=(
+                        f"Example Jira task {index} created for relation CRUD validation."
+                    ),
+                    project_id=project_id,
+                )
+            )
+            created_tasks.append(task)
+            print(task)
+
+        await client.get_task(created_tasks[0].id)
+        wait_for_enter("Tasks created. Check them in Jira before task update.")
+
+        created_tasks[0] = await client.update_task(
+            created_tasks[0].id,
+            UpdateTaskInput(description="Updated Jira relation example root task."),
         )
-        print("jira: updated relation")
-        print(relation)
-        print("jira: raw create_issue_link response after update")
-        print(jira_transport.get_last_issue_link_debug())
-        print("jira: relations for root task after update")
+        print(created_tasks[0])
+
+        wait_for_enter("Task updated. Check it in Jira before relation creation.")
+
+        root_task, blocked_task, related_task, child_task = created_tasks
+        relation_specs = (
+            (blocked_task, RelationType.BLOCKS),
+            (related_task, RelationType.RELATES),
+            (child_task, RelationType.CONTAINS),
+        )
+
+        jira_transport = client._client._transport
+        for target_task, relation_type in relation_specs:
+            relation = await client.create_relation(
+                CreateRelationInput(
+                    source_task_id=root_task.id,
+                    target_task_id=target_task.id,
+                    relation_type=relation_type,
+                )
+            )
+            created_relations.append(relation)
+            print(f"jira: created {relation_type.value} relation")
+            print(relation)
+            if relation.id is not None and relation.id.startswith("jira-contains:"):
+                print("jira: contains relation created through structural hierarchy")
+            else:
+                print("jira: raw create_issue_link response")
+                print(jira_transport.get_last_issue_link_debug())
+
+        print("jira: relations for root task")
         print(await client.list_relations(root_task.id))
-        print("jira: relations for related task after update")
-        print(await client.list_relations(related_task.id))
-    else:
-        print("Skip Jira relation update because provider did not return relation id.")
+        for target_task, relation_type in relation_specs:
+            print(
+                f"jira: relations for {relation_type.value} target "
+                f"{target_task.key or target_task.id}"
+            )
+            print(await client.list_relations(target_task.id))
 
-    wait_for_enter("Check Jira before relation cleanup.")
+        wait_for_enter("Three relations created. Check them in Jira before cleanup.")
+    finally:
+        for relation in reversed(created_relations):
+            if relation.id is None:
+                continue
+            try:
+                await client.delete_relation(relation.id)
+            except TrackerClientError as error:
+                print(f"Could not delete relation {relation.id}: {error}")
 
-    if relation.id is not None:
-        await client.delete_relation(relation.id)
+        wait_for_enter("Relations deleted where supported. Check Jira before task delete.")
 
-    wait_for_enter("Relation deleted. Check Jira before task delete.")
+        for task in reversed(created_tasks):
+            try:
+                await client.delete_task(task.id)
+            except TrackerClientError as error:
+                print(f"Could not delete task {task.id}: {error}")
+        wait_for_enter("Tasks deleted. Check them in Jira after delete.")
 
-    for task in reversed(created_tasks):
-        await client.delete_task(task.id)
-    wait_for_enter("Tasks deleted. Check them in Jira after delete.")
-
-    if created_project:
-        wait_for_enter("Check the project in Jira before project delete.")
-        await client.delete_project(project.id)
-        wait_for_enter("Project deleted. Check it in Jira after delete.")
+        if created_project:
+            wait_for_enter("Check the project in Jira before project delete.")
+            await client.delete_project(project.id)
+            wait_for_enter("Project deleted. Check it in Jira after delete.")
     print("jira: done")
 
 

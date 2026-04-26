@@ -21,6 +21,11 @@ These relation types fit the visual graph model of the product:
 - node appearance may vary by task type
 - edge appearance may vary by relation type
 
+Provider-specific relation variants such as duplicates, clones, epics, or custom
+hierarchy levels are intentionally outside the public `RelationType` enum. They
+can be handled later as provider metadata or normalized into a core type when
+that preserves product semantics.
+
 ## Models
 ```python
 class Relation(BaseModel):
@@ -53,7 +58,7 @@ class UpdateRelationInput(BaseModel):
 Use `RelationMappingConfig` when provider defaults are not enough.
 
 ```python
-from depensee_tracker_client import (
+from trackerkit import (
     JiraContainsMode,
     JiraLinkTypeMapping,
     JiraRelationMappingConfig,
@@ -76,6 +81,49 @@ relation_mapping = RelationMappingConfig(
 )
 ```
 
+The primary path is to pass `RelationMappingConfig` explicitly during client
+initialization. For examples, tests, or host services that intentionally use
+environment-based settings, you can build the same optional Jira mapping from
+environment variables:
+
+```python
+from trackerkit import RelationMappingConfig, TrackerClient
+
+client = TrackerClient(
+    provider="jira",
+    auth_data={...},
+    relation_mapping=RelationMappingConfig.from_env(),
+)
+```
+
+Supported Jira env variables:
+- `JIRA_RELATES_LINK_TYPES`
+- `JIRA_BLOCKS_LINK_TYPES`
+- `JIRA_CONTAINS_LINK_TYPES`
+- `JIRA_CONTAINS_MODE`
+
+`*_LINK_TYPES` values can use the simple type-name format:
+
+```text
+Type name;Another type
+```
+
+For example:
+
+```text
+JIRA_BLOCKS_LINK_TYPES=Blocks
+JIRA_CONTAINS_LINK_TYPES=Contains
+```
+
+When you need stricter matching, include Jira direction labels:
+
+```text
+JIRA_BLOCKS_LINK_TYPES=Blocks|blocks|is blocked by
+```
+
+If `JIRA_CONTAINS_LINK_TYPES` is set and `JIRA_CONTAINS_MODE` is not set,
+`contains` uses `custom_link_mapping` so relation create/delete can use Jira issue links.
+
 ### Jira modes
 - `structural_hierarchy` - default mode; `contains` is read and created through hierarchy, not through issue links
 - `custom_link_mapping` - `contains` is handled only through configured link types
@@ -97,9 +145,16 @@ relation_mapping = RelationMappingConfig(
 - relation CRUD is not implemented yet in this adapter
 - task dependencies and subtasks remain a follow-up area
 
+## Provider Capability Summary
+| Provider | Relations | Users | Comments |
+| --- | --- | --- | --- |
+| Jira | implemented for core relation types | not implemented | not implemented |
+| Yandex Tracker | implemented for core relation types | not implemented | not implemented |
+| Asana | not implemented | not implemented | not implemented |
+
 ## Example
 ```python
-from depensee_tracker_client import (
+from trackerkit import (
     CreateRelationInput,
     RelationType,
     TrackerClient,

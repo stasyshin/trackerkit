@@ -1,4 +1,4 @@
-# depensee-tracker-client
+# trackerkit
 
 Unified async client library for Jira, Yandex Tracker, and Asana integrations.
 
@@ -9,16 +9,22 @@ Unified async client library for Jira, Yandex Tracker, and Asana integrations.
 
 ## Installation
 
+Install from PyPI:
+
+```bash
+pip install trackerkit
+```
+
 Install from a Git tag:
 
 ```bash
-pip install "git+https://github.com/stasyshin/depensee-tracker-client.git@v0.1.0"
+pip install "git+https://github.com/stasyshin/trackerkit.git@v0.1.0"
 ```
 
 Install from the `main` branch:
 
 ```bash
-pip install "git+https://github.com/stasyshin/depensee-tracker-client.git@main"
+pip install "git+https://github.com/stasyshin/trackerkit.git@main"
 ```
 
 ## Local development
@@ -51,6 +57,7 @@ pip install .
 - provider auth configs;
 - real provider adapters for `workspaces`, `projects`, and `tasks`;
 - relation CRUD for `Jira` and `Yandex Tracker`;
+- users and comments are modeled in the shared contract, but provider adapters currently report them as unsupported capabilities;
 - client factory.
 
 ## Internal architecture
@@ -65,7 +72,7 @@ pip install .
 docs/
 examples/
 src/
-└── depensee_tracker_client/
+└── trackerkit/
     ├── contracts/
     ├── domain/
     ├── factory/
@@ -76,7 +83,7 @@ src/
 
 ## Usage
 ```python
-from depensee_tracker_client import TrackerClient
+from trackerkit import TrackerClient
 
 client = TrackerClient(
     provider="jira",
@@ -104,8 +111,9 @@ python -m pip wheel . --no-deps
 ## Service integration
 This library is designed to be embedded into a backend service.
 
-- the library does not read environment variables by itself;
+- the primary configuration path is explicit `TrackerClient` initialization;
 - the service loads configuration and passes typed `auth_data` into `TrackerClient`;
+- optional helpers such as `RelationMappingConfig.from_env()` read environment variables only when the host service or an example calls them explicitly;
 - connection behavior is configured via explicit `TrackerClient` arguments instead of `auth_data`;
 - only `examples/` load local env files for manual development checks.
 
@@ -113,7 +121,7 @@ This library is designed to be embedded into a backend service.
 ```python
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from depensee_tracker_client import TrackerClient
+from trackerkit import TrackerClient
 
 
 class JiraSettings(BaseSettings):
@@ -144,6 +152,8 @@ client = TrackerClient(
 - `docs/projects.md` - workspaces and project methods.
 - `docs/tasks.md` - task methods and task models.
 - `docs/relations.md` - relation semantics, mapping config, and CRUD behavior.
+- `ROADMAP.md` - current status, planned work, and future provider candidates.
+- `THIRD_PARTY_LICENSES.md` - direct runtime dependency license summary.
 
 ## Examples
 - `examples/jira_example.py` - Jira auth, projects flow, task flow, and relation flow.
@@ -156,7 +166,7 @@ client = TrackerClient(
 `Jira`, `Yandex Tracker`, and `Asana` already implement the shared `workspaces`, `projects`, and `tasks` contract. `Jira` and `Yandex Tracker` also implement relation CRUD for the core product relation types. `Asana` relations remain follow-up work.
 
 ## Entity Mapping
-`depensee-tracker-client` exposes a canonical task-tracker model.
+`trackerkit` exposes a canonical task-tracker model.
 This model is grounded in provider documentation first, then normalized into a shared contract for the backend.
 Shared entities do not have to match provider-native names one to one.
 They are mapped by functional role in the workflow, and some shared entities are integration-level abstractions rather than native provider objects.
@@ -171,7 +181,7 @@ They are mapped by functional role in the workflow, and some shared entities are
 | `User` | native Jira user | native Tracker user | native Asana user |
 | `Relation` | native Jira issue link or hierarchy relation depending on config | native issue link with explicit relationship type and direction | task dependency / dependent edge rather than a general-purpose typed link |
 
-### Canonical mapping decision in `depensee-tracker-client`
+### Canonical mapping decision in `trackerkit`
 - `Jira`: shared `Project` maps to Jira project, and shared `Task` maps to issue.
 - `Yandex Tracker`: shared `Project` maps to queue, and shared `Task` maps to issue inside that queue.
 - `Yandex Tracker`: native Yandex `project` is documented as a separate higher-level entity and is not part of the current shared contract.
@@ -191,9 +201,11 @@ The core visual set is smaller than the full set of provider-native link types.
 | `blocks` | one task blocks or unlocks another | directed arrow | Blocks-style issue link direction | `depends on` / `is dependent by` | dependencies / dependents |
 | `contains` | one task structurally includes, decomposes, or parents another | solid line | work item hierarchy such as parent-child or subtask hierarchy | `is parent task for` / `is subtask for`, plus epic-style hierarchy when relevant | subtasks |
 
-### Secondary imported relations
-- `duplicates` is not a core visual relation for the product and should be treated as secondary imported metadata rather than a primary canvas semantic.
-- Provider-specific hierarchy variants such as epics or custom hierarchy levels can later be folded into `contains` when that preserves the planning meaning.
+### Non-core provider relations
+Provider-specific relation variants such as duplicates, clones, epics, or custom hierarchy
+levels are not part of the public `RelationType` enum. They can be handled later as
+provider metadata or normalized into one of the three core relation types when that
+preserves the product meaning.
 
 ### Integration note
 - The product-facing taxonomy above is the active shared model for relation work in the library.
@@ -222,9 +234,15 @@ The core visual set is smaller than the full set of provider-native link types.
 - Asana: [Set dependencies for a task](https://developers.asana.com/reference/adddependenciesfortask)
 - Asana: [Get dependents from a task](https://developers.asana.com/reference/getdependentsfortask)
 
-Examples use environment variables instead of hardcoded credentials:
+Examples use environment variables instead of hardcoded credentials.
+Host services should prefer explicit settings objects and pass `auth_data` / `relation_mapping`
+into `TrackerClient` during initialization:
 - `JIRA_BASE_URL`
 - `JIRA_TOKEN`
+- `JIRA_RELATES_LINK_TYPES` - optional Jira relation mapping, `Type` or `Type|outward|inward`
+- `JIRA_BLOCKS_LINK_TYPES` - optional Jira relation mapping, `Type` or `Type|outward|inward`
+- `JIRA_CONTAINS_LINK_TYPES` - optional Jira relation mapping for custom `contains`
+- `JIRA_CONTAINS_MODE` - optional Jira contains mode override
 - `YANDEX_TOKEN`
 - `YANDEX_CLOUD_ORG_ID` - use one of `YANDEX_CLOUD_ORG_ID` or `YANDEX_ORG_ID`
 - `YANDEX_ORG_ID` - use one of `YANDEX_CLOUD_ORG_ID` or `YANDEX_ORG_ID`
@@ -240,7 +258,5 @@ Examples load variables with this priority:
 2. `.env`
 3. `.env.example`
 
-## Next steps
-- validate relation CRUD on real Jira and Yandex Tracker workspaces with manual examples;
-- add targeted automated coverage for relation normalization and mapping configs;
-- design Asana relation support around dependencies and subtasks without overloading the shared model.
+## Roadmap
+See `ROADMAP.md` for current status, planned work, and future provider candidates.

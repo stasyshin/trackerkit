@@ -1,23 +1,25 @@
 [tool.poetry]
-name = "depensee-tracker-client"
+name = "trackerkit"
 version = "0.1.0"
 description = "Unified async client library for Jira, Yandex Tracker, and Asana integrations."
 authors = ["Mikhail Stasyshin <m.stasyshin@gmail.com>"]
 readme = "README.md"
-homepage = "https://github.com/stasyshin/depensee-tracker-client"
-repository = "https://github.com/stasyshin/depensee-tracker-client"
-documentation = "https://github.com/stasyshin/depensee-tracker-client#readme"
+license = "MIT"
+homepage = "https://github.com/stasyshin/trackerkit"
+repository = "https://github.com/stasyshin/trackerkit"
+documentation = "https://github.com/stasyshin/trackerkit#readme"
 keywords = ["jira", "yandex-tracker", "asana", "task-tracker", "async", "integration"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-packages = [{ include = "depensee_tracker_client", from = "src" }]
+packages = [{ include = "trackerkit", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"

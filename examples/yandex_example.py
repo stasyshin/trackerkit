@@ -1,9 +1,9 @@
-﻿import asyncio
+import asyncio
 import os
 import random
 import string
 
-from depensee_tracker_client import (
+from trackerkit import (
     CreateRelationInput,
     CreateProjectInput,
     CreateTaskInput,
@@ -12,7 +12,6 @@ from depensee_tracker_client import (
     TrackerClient,
     TrackerClientError,
     UpdateProjectInput,
-    UpdateRelationInput,
     UpdateTaskInput,
     YandexTrackerAuthConfig,
 )
@@ -59,13 +58,13 @@ async def main() -> None:
     # This keeps test data isolated and allows deleting the whole queue after
     # the run instead of leaving tasks in a shared existing queue.
     created_project = False
-    project_key = "DEPENSEE" + "".join(random.choices(string.ascii_uppercase, k=3))
+    project_key = "TRKIT" + "".join(random.choices(string.ascii_uppercase, k=3))
     try:
         project = await client.create_project(
             CreateProjectInput(
-                name=f"Depensee Demo Project {project_key[-3:]}",
+                name=f"TrackerKit Demo Project {project_key[-3:]}",
                 key=project_key,
-                description="Temporary example project created from depensee-tracker-client.",
+                description="Temporary example project created from trackerkit.",
             )
         )
         created_project = True
@@ -89,84 +88,89 @@ async def main() -> None:
 
     wait_for_enter("Project updated. Check it in Yandex Tracker before task creation.")
 
-    # 4. Create three tasks for the same visible relation lifecycle as Jira.
-    created_tasks = []
-    for index, title in enumerate(
-        (
-            "Prepare release notes",
-            "Review release notes",
-            "Publish release summary",
-        ),
-        start=1,
-    ):
-        task = await client.create_task(
-            CreateTaskInput(
-                title=title,
-                description=(
-                    f"Example Yandex Tracker task {index} created for relation CRUD validation."
-                ),
-                project_id=project.key or project.id,
+    created_relations = []
+    try:
+        # 4. Create one root task and three target tasks for each relation type.
+        created_tasks = []
+        for index, title in enumerate(
+            (
+                "Prepare release notes",
+                "Review release notes",
+                "Publish release summary",
+                "Prepare release checklist",
+            ),
+            start=1,
+        ):
+            task = await client.create_task(
+                CreateTaskInput(
+                    title=title,
+                    description=(
+                        f"Example Yandex Tracker task {index} created for relation CRUD validation."
+                    ),
+                    project_id=project.key or project.id,
+                )
             )
+            created_tasks.append(task)
+            print(task)
+
+        await client.get_task(created_tasks[0].id)
+        wait_for_enter("Tasks created. Check them in Yandex Tracker before task update.")
+
+        created_tasks[0] = await client.update_task(
+            created_tasks[0].id,
+            UpdateTaskInput(description="Updated Yandex relation example root task."),
         )
-        created_tasks.append(task)
-        print(task)
+        print(created_tasks[0])
 
-    await client.get_task(created_tasks[0].id)
-    wait_for_enter("Tasks created. Check them in Yandex Tracker before task update.")
-
-    created_tasks[0] = await client.update_task(
-        created_tasks[0].id,
-        UpdateTaskInput(description="Updated Yandex relation example root task."),
-    )
-    print(created_tasks[0])
-
-    root_task, blocked_task, related_task = created_tasks
-
-    relation = await client.create_relation(
-        CreateRelationInput(
-            source_task_id=root_task.id,
-            target_task_id=blocked_task.id,
-            relation_type=RelationType.BLOCKS,
+        root_task, blocked_task, related_task, child_task = created_tasks
+        relation_specs = (
+            (blocked_task, RelationType.BLOCKS),
+            (related_task, RelationType.RELATES),
+            (child_task, RelationType.CONTAINS),
         )
-    )
-    print("yandex_tracker: created relation")
-    print(relation)
 
-    print("yandex_tracker: relations for root task")
-    print(await client.list_relations(root_task.id))
-    print("yandex_tracker: relations for blocked task")
-    print(await client.list_relations(blocked_task.id))
+        for target_task, relation_type in relation_specs:
+            relation = await client.create_relation(
+                CreateRelationInput(
+                    source_task_id=root_task.id,
+                    target_task_id=target_task.id,
+                    relation_type=relation_type,
+                )
+            )
+            created_relations.append(relation)
+            print(f"yandex_tracker: created {relation_type.value} relation")
+            print(relation)
 
-    wait_for_enter("Relation created. Check it in Yandex Tracker before relation update.")
+        print("yandex_tracker: relations for root task")
+        print(await client.list_relations(root_task.id))
+        for target_task, relation_type in relation_specs:
+            print(
+                f"yandex_tracker: relations for {relation_type.value} target "
+                f"{target_task.key or target_task.id}"
+            )
+            print(await client.list_relations(target_task.id))
 
-    relation = await client.update_relation(
-        relation.id,
-        UpdateRelationInput(
-            source_task_id=root_task.id,
-            target_task_id=related_task.id,
-            relation_type=RelationType.RELATES,
-        ),
-    )
-    print("yandex_tracker: updated relation")
-    print(relation)
-    print("yandex_tracker: relations for root task after update")
-    print(await client.list_relations(root_task.id))
-    print("yandex_tracker: relations for related task after update")
-    print(await client.list_relations(related_task.id))
-
-    wait_for_enter(
-        "Relation updated. Check it in Yandex Tracker before cleanup of links and project."
-    )
-
-    # Yandex Tracker does not support direct issue deletion reliably in this flow.
-    # Instead, remove links and delete the whole temporary queue/project.
-    if created_project:
-        await client.delete_relation(relation.id)
         wait_for_enter(
-            "Relation removed. Tasks still exist in the temporary queue. Check them before project delete."
+            "Three relations created. Check them in Yandex Tracker before cleanup."
         )
-        await client.delete_project(project.id)
-        wait_for_enter("Temporary project deleted. Check it in Yandex Tracker after delete.")
+    finally:
+        # Yandex Tracker does not support direct issue deletion reliably in this flow.
+        # Instead, remove links and delete the whole temporary queue/project.
+        if created_project:
+            for relation in reversed(created_relations):
+                if relation.id is None:
+                    continue
+                try:
+                    await client.delete_relation(relation.id)
+                except TrackerClientError as error:
+                    print(f"Could not delete relation {relation.id}: {error}")
+            wait_for_enter(
+                "Relations removed. Tasks still exist in the temporary queue. Check them before project delete."
+            )
+            await client.delete_project(project.id)
+            wait_for_enter(
+                "Temporary project deleted. Check it in Yandex Tracker after delete."
+            )
     print("yandex_tracker: done")
 
 

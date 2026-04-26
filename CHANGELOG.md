@@ -14,4 +14,4 @@ The format is based on Keep a Changelog, and the project uses Semantic Versionin
 - example scripts and documentation for auth, projects, and tasks.
 
 ### Changed
-- package name finalized as `depensee-tracker-client`.
+- package name finalized as `trackerkit`.

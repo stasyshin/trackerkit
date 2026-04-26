@@ -1,1 +1,1 @@
-# Tests for depensee-tracker-client.
+# Tests for trackerkit.

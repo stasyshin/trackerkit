@@ -77,7 +77,7 @@ The detailed CRUD contract and provider-specific mapping rules live in `docs/rel
 
 ### Source-grounded notes
 - Jira issue links are bidirectional and depend on configured link types such as `Blocks` with inward / outward labels.
-- Yandex Tracker links are created with explicit relationship values such as `relates`, `depends on`, `is dependent by`, `duplicates`, `is duplicated by`, plus hierarchy-oriented variants.
+- Yandex Tracker links are created with explicit relationship values such as `relates`, `depends on`, `is dependent by`, plus hierarchy-oriented variants.
 - Asana exposes dependencies and dependents for tasks, so it naturally covers blocking order but not a broad relation taxonomy like Jira or Yandex Tracker.
 - Because of that mismatch, a shared `RelationType` should stay limited to the intersection that can be normalized safely across providers.
 
@@ -95,9 +95,9 @@ The core set is:
 | `blocks` | one task blocks or unlocks another | directed arrow | Blocks-style issue link direction | `depends on` / `is dependent by` | dependencies / dependents |
 | `contains` | one task includes or structurally owns another | solid line | parent-child or subtask hierarchy | `is parent task for` / `is subtask for`, plus epic-style hierarchy when relevant | subtasks |
 
-### Secondary imported relations
-- `duplicates` is not a core visual relation for the product.
-- If imported from providers, it should be treated as secondary metadata rather than as a primary canvas relation type.
+### Non-core provider relations
+- Provider-specific relation variants such as duplicates, clones, epics, or custom hierarchy levels are not part of the public `RelationType` enum.
+- If imported later, they should be treated as provider metadata or normalized into one of the three core relation types only when that preserves the product meaning.
 
 ### Modeling note
 - This product-facing taxonomy is a better fit for the canvas concept than a provider-driven list of all possible external link types.
@@ -114,7 +114,7 @@ The core set is:
 
 ## Example
 ```python
-from depensee_tracker_client import (
+from trackerkit import (
     CreateTaskInput,
     TaskQuery,
     TrackerClient,
