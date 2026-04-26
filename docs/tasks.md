@@ -30,6 +30,7 @@ await client.delete_task(task_id: str) -> None
 - `assignee_id`: `str | None`
 - `status_id`: `str | None`
 - `updated_since`: `datetime | None`
+- `limit`: `int | None` — soft cap on materialized rows; honored by Asana, ignored by Jira/Yandex (their server queries are already bounded). When omitted, Asana caps at 200.
 
 ### CreateTaskInput
 - `title`: `str`
@@ -51,6 +52,7 @@ await client.delete_task(task_id: str) -> None
 - `list_tasks()` supports a common query model only.
 - provider-specific fields are intentionally excluded from the shared contract.
 - `Jira`, `Yandex Tracker`, and `Asana` implement this section of the contract.
+- In `Asana`, `list_tasks()` requires `TaskQuery.project_id`. Without it the adapter raises `ProviderCapabilityError` to avoid a workspace-wide stampede over every project.
 - In `Yandex Tracker`, unified `Task` maps to issue.
 - In `Yandex Tracker`, `Task.project_id` maps to queue key.
 - In `Yandex Tracker`, `create_task()` sends `project_id` as the target queue.

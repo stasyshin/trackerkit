@@ -1,9 +1,10 @@
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from trackerkit.contracts.task_tracker_client import TaskTrackerClient
-from trackerkit.domain.enums import Provider
+from trackerkit.domain.enums import ConnectionErrorKind, Provider
 from trackerkit.domain.errors import AuthenticationError, ConfigurationError, ProviderError
 from trackerkit.domain.models import (
     Comment,
@@ -39,9 +40,11 @@ class TrackerClient:
         self,
         provider: Provider | str,
         auth_data: dict,
-        connection_timeout: int = 3,
+        connection_timeout: float = 3.0,
         max_retries: int = 0,
         relation_mapping: RelationMappingConfig | None = None,
+        connection_check_ttl: float = 30.0,
+        verify_each_call: bool = False,
     ) -> None:
         """Create a facade client for one selected provider.
 
@@ -50,15 +53,33 @@ class TrackerClient:
         - `yandex_tracker`: exactly one of `token` or `iam_token`, and exactly
           one of `org_id` or `cloud_org_id`
         - `asana`: `access_token`
+
+        Connection check semantics:
+        - by default, the first business call triggers one provider auth check
+          and the result is cached for ``connection_check_ttl`` seconds, so
+          subsequent calls do not pay the round-trip cost;
+        - ``verify_each_call=True`` forces a fresh check before every call;
+        - ``invalidate_connection_cache()`` lets callers reset the cache after
+          out-of-band token rotation.
         """
+
+        if connection_timeout <= 0:
+            raise ConfigurationError(
+                "connection_timeout must be a positive number of seconds."
+            )
+        if max_retries < 0:
+            raise ConfigurationError("max_retries must be zero or positive.")
+        if connection_check_ttl < 0:
+            raise ConfigurationError(
+                "connection_check_ttl must be zero or positive (0 disables caching)."
+            )
 
         self._provider = Provider(provider)
         config_data = {
             **auth_data,
             "timeout_seconds": connection_timeout,
+            "max_retries": max_retries,
         }
-        if self._provider is Provider.JIRA:
-            config_data["max_retries"] = max_retries
 
         self._auth_config = TaskTrackerClientFactory.build_auth_config(
             self._provider,
@@ -68,6 +89,9 @@ class TrackerClient:
             self._auth_config,
             relation_mapping=relation_mapping,
         )
+        self._connection_check_ttl = float(connection_check_ttl)
+        self._verify_each_call = bool(verify_each_call)
+        self._last_successful_check_at: float | None = None
 
     @property
     def provider(self) -> Provider:
@@ -82,25 +106,49 @@ class TrackerClient:
             or f"Provider '{self._provider.value}' connection check failed."
         )
 
-        if diagnostic.error_kind == "authentication":
+        if diagnostic.error_kind is ConnectionErrorKind.AUTHENTICATION:
             return AuthenticationError(message)
 
-        if diagnostic.error_kind == "configuration":
+        if diagnostic.error_kind is ConnectionErrorKind.CONFIGURATION:
             return ConfigurationError(message)
 
         return ProviderError(message)
 
+    def _connection_cache_is_fresh(self) -> bool:
+        if self._verify_each_call:
+            return False
+        if self._last_successful_check_at is None:
+            return False
+        if self._connection_check_ttl <= 0:
+            return False
+        return (
+            time.monotonic() - self._last_successful_check_at
+            < self._connection_check_ttl
+        )
+
+    def invalidate_connection_cache(self) -> None:
+        """Drop the cached successful connection check.
+
+        Useful after out-of-band auth changes (e.g. token rotation) to force
+        the next call to re-verify.
+        """
+        self._last_successful_check_at = None
+
     async def _ensure_connection(self) -> None:
+        if self._connection_cache_is_fresh():
+            return
         diagnostic = await self.get_connection_diagnostic()
         if not diagnostic.is_connected:
+            self._last_successful_check_at = None
             logger.warning(
                 "Provider connection check failed: provider=%s kind=%s type=%s message=%s",
                 self._provider.value,
-                diagnostic.error_kind or "unknown",
+                diagnostic.error_kind.value if diagnostic.error_kind else "unknown",
                 diagnostic.error_type or "unknown",
                 diagnostic.message or "no details",
             )
             raise self._build_connection_error(diagnostic)
+        self._last_successful_check_at = time.monotonic()
 
     async def _execute(self, operation: Callable[[], Awaitable[T]]) -> T:
         await self._ensure_connection()

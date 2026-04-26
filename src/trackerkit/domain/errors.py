@@ -1,3 +1,6 @@
+from trackerkit.domain.enums import ConnectionErrorKind
+
+
 class TrackerClientError(Exception):
     """Base exception for the package."""
 
@@ -21,14 +24,14 @@ class ProviderCapabilityError(TrackerClientError):
 TrackerKitError = TrackerClientError
 
 
-def get_error_kind(error: Exception) -> str:
+def get_error_kind(error: Exception) -> ConnectionErrorKind:
     if isinstance(error, AuthenticationError):
-        return "authentication"
+        return ConnectionErrorKind.AUTHENTICATION
     if isinstance(error, ConfigurationError):
-        return "configuration"
+        return ConnectionErrorKind.CONFIGURATION
     if isinstance(error, ProviderCapabilityError):
-        return "capability"
+        return ConnectionErrorKind.CAPABILITY
     if isinstance(error, ProviderError):
-        return "provider"
-    return "provider"
+        return ConnectionErrorKind.PROVIDER
+    return ConnectionErrorKind.PROVIDER
 

@@ -97,7 +97,9 @@ client = TrackerClient(
 ```
 
 ## Development
-- Python `3.12`
+- Python `3.12+` (required — the codebase uses `from datetime import UTC` and
+  modern `X | Y` generics that need 3.10+ at minimum, and `UTC` since 3.11;
+  3.12 is the chosen lower bound to match `pydantic 2.12` and `ruff` defaults)
 - package manager: `poetry`
 - import root: `src`
 
@@ -106,6 +108,14 @@ Build the package locally:
 
 ```bash
 python -m pip wheel . --no-deps
+```
+
+Lint and tests (after `poetry install`):
+
+```bash
+poetry run ruff check
+poetry run ruff format --check
+poetry run pytest
 ```
 
 ## Service integration

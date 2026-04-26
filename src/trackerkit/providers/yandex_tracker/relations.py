@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from trackerkit.domain.enums import RelationType
 from trackerkit.domain.models import CreateRelationInput, Relation
@@ -10,7 +10,7 @@ from trackerkit.domain.relation_mapping import (
 
 class YandexTrackerRelationPolicy:
     _RELATION_ID_SEPARATOR = ":"
-    _TYPE_ID_ALIASES = {
+    _TYPE_ID_ALIASES: ClassVar[dict[str, RelationType]] = {
         "relates": RelationType.RELATES,
         "subtask": RelationType.CONTAINS,
         "parent": RelationType.CONTAINS,

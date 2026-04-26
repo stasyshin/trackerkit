@@ -9,6 +9,12 @@ class JiraQueryBuilder:
     def build_task_search(self, query: TaskQuery | None) -> tuple[str, str]:
         return (self._build_jql(query), self.task_fields)
 
+    @staticmethod
+    def _escape_jql_string(value: str) -> str:
+        # JQL string literals are double-quoted; backslash and double quote
+        # must be escaped to avoid breaking out of the literal.
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
     def _build_jql(self, query: TaskQuery | None) -> str:
         if query is None:
             return "order by updated DESC"
@@ -16,11 +22,11 @@ class JiraQueryBuilder:
         clauses: list[str] = []
 
         if query.project_id:
-            clauses.append(f'project = "{query.project_id}"')
+            clauses.append(f'project = "{self._escape_jql_string(query.project_id)}"')
         if query.assignee_id:
-            clauses.append(f'assignee = "{query.assignee_id}"')
+            clauses.append(f'assignee = "{self._escape_jql_string(query.assignee_id)}"')
         if query.status_id:
-            clauses.append(f'status = "{query.status_id}"')
+            clauses.append(f'status = "{self._escape_jql_string(query.status_id)}"')
         if query.updated_since:
             clauses.append(
                 f'updated >= "{query.updated_since.strftime("%Y-%m-%d %H:%M")}"'

@@ -12,3 +12,17 @@ class RelationType(str, Enum):
     BLOCKS = "blocks"
     CONTAINS = "contains"
 
+
+class ConnectionErrorKind(str, Enum):
+    """Stable taxonomy of connection-check failure reasons.
+
+    `ConnectionDiagnostic.error_kind` uses these values; the string base
+    keeps backward compatibility with callers that compare against literals
+    like ``"authentication"``.
+    """
+
+    AUTHENTICATION = "authentication"
+    CONFIGURATION = "configuration"
+    CAPABILITY = "capability"
+    PROVIDER = "provider"
+

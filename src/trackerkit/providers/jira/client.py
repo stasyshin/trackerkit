@@ -86,15 +86,19 @@ class JiraClient(BaseTaskTrackerAdapter):
         if payload.due_date is not None:
             fields["duedate"] = payload.due_date.date().isoformat()
         if fields:
+            # `Issue.update(fields=...)` already refreshes the local resource
+            # via `find()` in pycontribs/jira, so no extra GET is needed when
+            # we only changed fields.
             await self._transport.update_issue_fields(issue, fields)
         if payload.status_id is not None:
+            # Transitions are POST-only and do not refresh the issue object,
+            # so a single re-read is required to surface the new status.
             await self._transport.transition_issue(issue, payload.status_id)
-        refreshed = await self._transport.get_issue(task_id, self._queries.task_fields)
-        return self._mapper.to_task(refreshed)
+            issue = await self._transport.get_issue(task_id, self._queries.task_fields)
+        return self._mapper.to_task(issue)
 
     async def delete_task(self, task_id: str) -> None:
-        issue = await self._transport.get_issue(task_id, self._queries.task_fields)
-        await self._transport.delete_issue(issue)
+        await self._transport.delete_issue_by_id(task_id)
 
     async def list_workspaces(self) -> list[Workspace]:
         return [self._mapper.to_workspace()]

@@ -28,17 +28,29 @@ class AsanaClient(BaseTaskTrackerAdapter):
         config: AsanaAuthConfig,
         relation_mapping: RelationMappingConfig | None = None,
     ) -> None:
-        del relation_mapping
+        # `relation_mapping` is intentionally accepted but not used yet.
+        # Asana relation CRUD is unimplemented, so `BaseTaskTrackerAdapter`
+        # raises `ProviderCapabilityError` on relation operations.
+        self._relation_mapping = relation_mapping
         self._transport = AsanaTransport(config)
         self._mapper = AsanaMapper()
         self._queries = AsanaQueryPolicy()
 
-    def _materialize(self, value: Any) -> list[dict[str, Any]]:
+    # Default page cap when callers do not pass `TaskQuery.limit`. Avoids
+    # eagerly draining a paginated SDK response for large workspaces.
+    _DEFAULT_TASK_LIMIT = 200
+
+    def _materialize(self, value: Any, limit: int | None = None) -> list[dict[str, Any]]:
         if value is None:
             return []
         if isinstance(value, list):
-            return value
-        return list(value)
+            return value if limit is None else value[:limit]
+        result: list[dict[str, Any]] = []
+        for item in value:
+            if limit is not None and len(result) >= limit:
+                break
+            result.append(item)
+        return result
 
     async def check_connection(self) -> bool:
         return await self._transport.check_connection(self._queries.workspace_fields())
@@ -54,28 +66,17 @@ class AsanaClient(BaseTaskTrackerAdapter):
 
     async def list_tasks(self, query: TaskQuery | None = None) -> list[Task]:
         effective_query = query or TaskQuery()
-        raw_tasks: list[dict[str, Any]] = []
-        if effective_query.project_id is not None:
-            result = await self._transport.get_tasks_for_project(
-                effective_query.project_id,
-                self._queries.task_fields(),
+        if effective_query.project_id is None:
+            raise ProviderCapabilityError(
+                "Asana list_tasks requires a TaskQuery.project_id. Walking every "
+                "workspace and project would issue an unbounded number of API calls."
             )
-            raw_tasks = self._materialize(result)
-        else:
-            seen_ids: set[str] = set()
-            workspaces = await self.list_workspaces()
-            for workspace in workspaces:
-                projects = await self.list_projects(workspace.id)
-                for project in projects:
-                    result = await self._transport.get_tasks_for_project(
-                        project.id,
-                        self._queries.task_fields(),
-                    )
-                    for item in self._materialize(result):
-                        if item["gid"] in seen_ids:
-                            continue
-                        seen_ids.add(item["gid"])
-                        raw_tasks.append(item)
+        limit = effective_query.limit or self._DEFAULT_TASK_LIMIT
+        result = await self._transport.get_tasks_for_project(
+            effective_query.project_id,
+            self._queries.task_fields(),
+        )
+        raw_tasks = self._materialize(result, limit=limit)
         tasks = [self._mapper.to_task(item) for item in raw_tasks]
         return self._queries.filter_tasks(tasks, query)
 
@@ -122,7 +123,10 @@ class AsanaClient(BaseTaskTrackerAdapter):
 
     async def list_workspaces(self) -> list[Workspace]:
         workspaces = await self._transport.get_workspaces(self._queries.workspace_fields())
-        return [self._mapper.to_workspace(item) for item in self._materialize(workspaces)]
+        return [
+            self._mapper.to_workspace(item)
+            for item in self._materialize(workspaces, limit=self._DEFAULT_TASK_LIMIT)
+        ]
 
     async def get_project(self, project_id: str) -> Project:
         project = await self._transport.get_project(project_id, self._queries.project_fields())
@@ -133,7 +137,10 @@ class AsanaClient(BaseTaskTrackerAdapter):
             workspace_id,
             self._queries.project_fields(),
         )
-        return [self._mapper.to_project(item) for item in self._materialize(projects)]
+        return [
+            self._mapper.to_project(item)
+            for item in self._materialize(projects, limit=self._DEFAULT_TASK_LIMIT)
+        ]
 
     async def create_project(self, payload: CreateProjectInput) -> Project:
         if payload.key is not None:

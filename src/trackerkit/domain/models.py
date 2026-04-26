@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from trackerkit.domain.enums import Provider, RelationType
+from trackerkit.domain.enums import ConnectionErrorKind, Provider, RelationType
 
 
 class User(BaseModel):
@@ -20,7 +20,9 @@ class Workspace(BaseModel):
 class ConnectionDiagnostic(BaseModel):
     provider: Provider
     is_connected: bool
-    error_kind: str | None = None
+    # Pydantic accepts both the enum and its string value (it's a `str` enum),
+    # so existing callers passing literals like ``"authentication"`` keep working.
+    error_kind: ConnectionErrorKind | None = None
     message: str | None = None
     error_type: str | None = None
 
@@ -75,6 +77,10 @@ class TaskQuery(BaseModel):
     assignee_id: str | None = None
     status_id: str | None = None
     updated_since: datetime | None = None
+    # Soft cap on the number of items the adapter materializes from a paginated
+    # provider response. Currently honored by Asana (`list_tasks`); Jira/Yandex
+    # ignore it because they already use bounded server-side queries.
+    limit: int | None = None
 
 
 class CreateTaskInput(BaseModel):

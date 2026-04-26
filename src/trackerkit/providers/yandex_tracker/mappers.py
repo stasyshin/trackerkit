@@ -69,11 +69,14 @@ class YandexTrackerMapper:
             or getattr(value, "login", None)
             or getattr(value, "display", None)
         )
+        if user_id is None:
+            return None
         display_name = (
             getattr(value, "display", None)
             or getattr(value, "login", None)
             or getattr(value, "firstName", None)
             or getattr(value, "id", None)
+            or user_id
         )
         return User(
             id=str(user_id),

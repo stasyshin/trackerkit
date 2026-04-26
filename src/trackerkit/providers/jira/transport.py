@@ -95,6 +95,11 @@ class JiraTransport:
     async def delete_issue(self, issue: Any) -> None:
         await self._run(issue.delete)
 
+    async def delete_issue_by_id(self, task_id: str) -> None:
+        # Avoids a preliminary `get_issue` round-trip when callers only need
+        # to delete by key/id. The SDK's `delete_issue` accepts a string key.
+        await self._run(self._get_client().delete_issue, task_id)
+
     async def get_issue_link(self, relation_id: str) -> Any:
         return await self._run(self._get_client().issue_link, relation_id)
 
@@ -152,9 +157,19 @@ class JiraTransport:
             raise_jira_project_creation_error(error)
 
     async def update_project(self, project_id: str, data: dict[str, Any]) -> None:
+        # Encapsulated workaround: `pycontribs/jira` does not expose a public
+        # `Project.update(...)` for partial mutations. We fall back to the
+        # SDK's internal session and URL builder here. Revisit if the SDK
+        # introduces a public update path. See:
+        # https://github.com/pycontribs/jira/issues — track for `Project.update`.
+        await self._run(self._raw_put_project, project_id, data)
+
+    def _raw_put_project(self, project_id: str, data: dict[str, Any]) -> Any:
+        # Uses private SDK API (`_get_url`, `_session`). Kept as a single
+        # helper so any breakage on a Jira SDK update is localized.
         client = self._get_client()
         url = client._get_url(f"project/{project_id}")
-        await self._run(client._session.put, url, data=json.dumps(data))
+        return client._session.put(url, data=json.dumps(data))
 
     async def delete_project(self, project_id: str) -> None:
         await self._run(self._get_client().delete_project, project_id)

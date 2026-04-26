@@ -7,7 +7,9 @@ from trackerkit.domain.errors import ConfigurationError
 class ProviderAuthConfig(BaseModel):
     """Base auth config shared by all provider-specific auth models."""
 
-    model_config = ConfigDict(frozen=True)
+    # `extra="ignore"` lets the facade pass provider-agnostic kwargs
+    # (e.g. `max_retries`) without leaking provider checks into it.
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     provider: Provider
     timeout_seconds: float = Field(default=5.0, gt=0)

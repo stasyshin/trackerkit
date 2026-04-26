@@ -17,6 +17,12 @@ await client.delete_project(project_id: str) -> None
 - `name`: `str`
 - `key`: `str | None`
 
+#### Workspace.id by provider
+- `Jira`: synthetic value of the form ``jira:<host>`` (e.g. ``jira:your-domain.atlassian.net``).
+  This is **not** a Jira API endpoint; treat it as an opaque identifier for routing in your service.
+- `Yandex Tracker`: organization id (``cloud_org_id`` or ``org_id``) or the literal ``yandex-tracker``.
+- `Asana`: native Asana workspace ``gid``.
+
 ### Project
 - `id`: `str`
 - `name`: `str`

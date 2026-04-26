@@ -5,13 +5,16 @@
 TrackerClient(
     provider: str,
     auth_data: dict,
-    connection_timeout: float = 3,
+    connection_timeout: float = 3.0,
     max_retries: int = 0,
     relation_mapping: RelationMappingConfig | None = None,
+    connection_check_ttl: float = 30.0,
+    verify_each_call: bool = False,
 )
 await client.check_connection() -> bool
 await client.ensure_connection() -> None
 await client.get_connection_diagnostic() -> ConnectionDiagnostic
+client.invalidate_connection_cache() -> None
 ```
 
 ## Providers
@@ -104,9 +107,12 @@ client = TrackerClient(
 - `connection_timeout` controls provider request timeout in seconds
 - `max_retries` controls additional retry attempts for Jira transport
 - `relation_mapping` overrides default relation normalization and provider link mapping
+- `connection_check_ttl` (seconds) caches a successful auth check; `0` disables caching
+- `verify_each_call` forces a fresh provider auth check before every business call
 - these options are passed separately from `auth_data`
 - defaults are defined on `TrackerClient`, not in environment variables
-- current defaults: `connection_timeout=3`, `max_retries=0`
+- current defaults: `connection_timeout=3.0`, `max_retries=0`, `connection_check_ttl=30.0`, `verify_each_call=False`
+- `connection_timeout <= 0`, `max_retries < 0`, and `connection_check_ttl < 0` raise `ConfigurationError`
 
 ## Capability Scope
 - `workspaces`, `projects`, and `tasks` are implemented by Jira, Yandex Tracker, and Asana
@@ -167,7 +173,12 @@ client = TrackerClient(
 - `get_connection_diagnostic()` returns structured connection details with `provider`, `is_connected`, `error_kind`, `error_type`, and `message`
 
 ## Connection Guard
-- facade methods call `check_connection()` before provider operations
+- facade methods call `ensure_connection()` before provider operations
+- a successful auth check is cached for `connection_check_ttl` seconds, so subsequent
+  calls within the window do not pay an extra provider round-trip
+- pass `verify_each_call=True` if your host service needs strict per-call verification
+- after out-of-band auth changes (e.g. token rotation) call `invalidate_connection_cache()`
+  to force the next call to re-verify
 - if connection is invalid, the facade raises a normalized domain error based on the real diagnostic cause
 
 ## Internal Notes

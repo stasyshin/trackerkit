@@ -9,12 +9,16 @@ from .contracts.auth import (
 from .domain import (
     AuthenticationError,
     Comment,
-    ConnectionDiagnostic,
     ConfigurationError,
+    ConnectionDiagnostic,
+    ConnectionErrorKind,
     CreateCommentInput,
     CreateProjectInput,
     CreateRelationInput,
     CreateTaskInput,
+    JiraContainsMode,
+    JiraLinkTypeMapping,
+    JiraRelationMappingConfig,
     Project,
     Provider,
     ProviderCapabilityError,
@@ -26,27 +30,24 @@ from .domain import (
     Task,
     TaskQuery,
     TrackerClientError,
+    TrackerKitError,
     UpdateProjectInput,
     UpdateRelationInput,
     UpdateTaskInput,
     User,
     Workspace,
-    JiraContainsMode,
-    JiraLinkTypeMapping,
-    JiraRelationMappingConfig,
     YandexTrackerRelationMapping,
     YandexTrackerRelationMappingConfig,
 )
 from .tracker_client import TrackerClient
 
-TrackerKitError = TrackerClientError
-
 __all__ = [
     "AsanaAuthConfig",
     "AuthenticationError",
     "Comment",
-    "ConnectionDiagnostic",
     "ConfigurationError",
+    "ConnectionDiagnostic",
+    "ConnectionErrorKind",
     "CreateCommentInput",
     "CreateProjectInput",
     "CreateRelationInput",

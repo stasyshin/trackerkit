@@ -1,4 +1,4 @@
-from trackerkit.domain.enums import Provider, RelationType
+from trackerkit.domain.enums import ConnectionErrorKind, Provider, RelationType
 from trackerkit.domain.errors import (
     AuthenticationError,
     ConfigurationError,
@@ -37,8 +37,9 @@ from trackerkit.domain.relation_mapping import (
 __all__ = [
     "AuthenticationError",
     "Comment",
-    "ConnectionDiagnostic",
     "ConfigurationError",
+    "ConnectionDiagnostic",
+    "ConnectionErrorKind",
     "CreateCommentInput",
     "CreateProjectInput",
     "CreateRelationInput",

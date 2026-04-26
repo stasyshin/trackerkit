@@ -9,11 +9,26 @@ from trackerkit.domain.models import Project, Status, Task, User, Workspace
 class JiraMapper:
     def __init__(self, base_url: str) -> None:
         self._base_url = base_url.rstrip("/")
+        self._workspace_id = self._build_workspace_id(self._base_url)
+
+    @staticmethod
+    def _build_workspace_id(base_url: str) -> str:
+        # Synthetic, deliberately non-URL form so callers cannot misuse this id
+        # as a real Jira API endpoint. Falls back to the original URL if parsing
+        # fails (best-effort) but still prefixes it with ``jira:`` to keep the
+        # value distinct from a usable URL.
+        parsed = urlparse(base_url)
+        host = parsed.netloc or base_url
+        return f"jira:{host}"
+
+    @property
+    def workspace_id(self) -> str:
+        return self._workspace_id
 
     def to_workspace(self) -> Workspace:
         parsed = urlparse(self._base_url)
         return Workspace(
-            id=self._base_url,
+            id=self._workspace_id,
             name=parsed.netloc or self._base_url,
             key="jira",
         )
@@ -27,7 +42,7 @@ class JiraMapper:
             name=str(value.name),
             key=getattr(value, "key", None),
             description=self._extract_description(description),
-            workspace_id=self._base_url,
+            workspace_id=self._workspace_id,
         )
 
     def to_task(self, issue: Any) -> Task:
@@ -72,18 +87,23 @@ class JiraMapper:
     def _to_user(self, value: Any) -> User | None:
         if value is None:
             return None
+        user_id = (
+            getattr(value, "accountId", None)
+            or getattr(value, "name", None)
+            or getattr(value, "key", None)
+            or getattr(value, "displayName", None)
+        )
+        if user_id is None:
+            return None
+        display_name = (
+            getattr(value, "displayName", None)
+            or getattr(value, "name", None)
+            or getattr(value, "accountId", None)
+            or user_id
+        )
         return User(
-            id=str(
-                getattr(value, "accountId", None)
-                or getattr(value, "name", None)
-                or getattr(value, "key", None)
-                or getattr(value, "displayName", None)
-            ),
-            display_name=str(
-                getattr(value, "displayName", None)
-                or getattr(value, "name", None)
-                or getattr(value, "accountId", None)
-            ),
+            id=str(user_id),
+            display_name=str(display_name),
             email=getattr(value, "emailAddress", None),
         )
 
