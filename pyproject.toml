@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "trackerkit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Unified async client library for Jira, Yandex Tracker, and Asana integrations."
 authors = ["Mikhail Stasyshin <m.stasyshin@gmail.com>"]
 readme = "README.md"
